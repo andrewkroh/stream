@@ -56,7 +56,7 @@ func New(opts *Options, logger *zap.SugaredLogger) (*Server, error) {
 		return nil, errors.New("both TLS certificate and key files must be defined")
 	}
 
-	config, err := newConfigFromFile(opts.ConfigPath)
+	config, err := newConfigFromFile(opts.ConfigPath, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -212,6 +212,17 @@ func newHandlerFromConfig(config *config, notFoundHandler http.HandlerFunc, logg
 				}
 
 				w.WriteHeader(response.StatusCode)
+
+				if response.cel != nil {
+					out, err := response.cel.evalAsString(r)
+					if err != nil {
+						logger.Errorf("failed executing cel program: %v", err)
+						return
+					}
+				
+					w.Write([]byte(out))
+					return
+				}
 
 				if err := response.Body.Execute(w, data); err != nil {
 					logger.Errorf("executing body template %s: %v", response.Body.Root.String(), err)

@@ -14,6 +14,7 @@ import (
 
 	ucfg "github.com/elastic/go-ucfg"
 	"github.com/elastic/go-ucfg/yaml"
+	"go.uber.org/zap"
 )
 
 type config struct {
@@ -37,7 +38,10 @@ type rule struct {
 type response struct {
 	Headers    map[string][]*tpl `config:"headers"`
 	Body       *tpl              `config:"body"`
+	CEL        *string           `config:"cel"`
 	StatusCode int               `config:"status_code"`
+
+	cel *program
 }
 
 type tpl struct {
@@ -65,7 +69,7 @@ func (t *tpl) Unpack(in string) error {
 	return nil
 }
 
-func newConfigFromFile(file string) (*config, error) {
+func newConfigFromFile(file string, log *zap.SugaredLogger) (*config, error) {
 	if file == "" {
 		return nil, errors.New("a rules config file is required")
 	}
@@ -78,6 +82,21 @@ func newConfigFromFile(file string) (*config, error) {
 	var config config
 	if err := cfg.Unpack(&config); err != nil {
 		return nil, err
+	}
+
+	for i := range config.Rules {
+		rule := &config.Rules[i]
+		for j := range rule.Responses {
+			resp := &rule.Responses[j]
+			if resp.CEL == nil {
+				continue
+			}
+
+			resp.cel, err = newProgram(*resp.CEL, log)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return &config, nil

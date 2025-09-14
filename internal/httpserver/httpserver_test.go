@@ -66,6 +66,12 @@ func TestHTTPServer(t *testing.T) {
           	"key2": "<value2>"
           }
           ` + "`" + `}}
+
+    - path: "/cel"
+      methods: ["GET"]
+      responses:
+      - status_code: 200
+        cel: '{"path": req.RequestURI}.encode_json()'
 `
 
 	f, err := ioutil.TempFile("", "test")
@@ -163,6 +169,20 @@ func TestHTTPServer(t *testing.T) {
 		resp.Body.Close()
 
 		assert.Equal(t, `{"key1":"value1","key2":"<value2>"}`, string(body))
+	})
+
+	t.Run("execute_cel_program", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://"+addr+"/cel", nil)
+		require.NoError(t, err)
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		resp.Body.Close()
+
+		assert.Equal(t, `{"path":"/cel"}`, string(body))
 	})
 }
 
